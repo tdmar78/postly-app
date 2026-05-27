@@ -1,0 +1,1111 @@
+import { useState, useRef } from "react";
+
+// ─── Palette ────────────────────────────────────────────────────────────────
+const T = {
+  starter: { name: "Starter", price: "$500/mo", color: "#2563EB", soft: "#EFF6FF", border: "#BFDBFE" },
+  growth:  { name: "Growth",  price: "$750/mo", color: "#D97706", soft: "#FFFBEB", border: "#FCD34D" },
+  pro:     { name: "Pro",     price: "$1,000/mo", color: "#7C3AED", soft: "#F5F3FF", border: "#C4B5FD" },
+};
+const DARK  = "#0F0F0F";
+const CARD  = "#161616";
+const BORD  = "#272727";
+const MUTED = "#666";
+const LIGHT = "#EFEFEB";
+const GREEN = "#059669";
+
+// ─── Tier data ───────────────────────────────────────────────────────────────
+const TIERS = {
+  starter: {
+    tagline: "The Foundation",
+    description: "Everything you need to get a local business consistently present on social media. Lean, fast, and repeatable — ideal for first clients. One platform, twelve posts, zero effort from the client.",
+    addedOver: null, addedItems: [],
+    deliverables: [
+      { icon: "📄", item: "12 posts/month", detail: "3 posts per week, every week" },
+      { icon: "📱", item: "1 platform", detail: "Instagram OR Facebook (client chooses)" },
+      { icon: "✍️", item: "AI-written captions", detail: "Brand voice guide + captions via Claude" },
+      { icon: "🎨", item: "Canva-designed graphics", detail: "Branded templates, client photo assets" },
+      { icon: "✅", item: "Client approval via Later", detail: "One-link approval, 48-hr window" },
+      { icon: "📅", item: "Auto-scheduled publishing", detail: "Later publishes at optimal times" },
+      { icon: "📊", item: "Monthly performance report", detail: "1-page summary via Claude + Later analytics" },
+    ],
+    techStack: [
+      { tool: "Claude", cost: "$20/mo", role: "Captions, brand profile, calendar, report" },
+      { tool: "Canva Pro", cost: "$15/mo", role: "Graphics, templates, Brand Kit" },
+      { tool: "Later.com", cost: "$18/mo", role: "Scheduling, approval link, analytics" },
+      { tool: "Otter.ai", cost: "$10/mo", role: "Transcribe onboarding call" },
+      { tool: "Notion (free)", cost: "$0", role: "Brand profile + content calendar storage" },
+    ],
+    steps: [
+      { phase: "ONBOARDING", phaseColor: "#D97706", num: "01", title: "Discovery Call", tool: "Zoom + Otter.ai", time: "30 min",
+        what: "Join a Zoom call with the client. Otter.ai runs in the background and auto-transcribes. Ask the 8 core discovery questions. Focus on listening — not note-taking.",
+        prompt: null,
+        output: "Otter.ai transcript auto-saved. Highlight key answers and paste into Notion: '[Client] — Discovery Notes'." },
+      { phase: "ONBOARDING", phaseColor: "#D97706", num: "02", title: "Build Brand Profile", tool: "Claude", time: "15 min",
+        what: "Paste your discovery notes into Claude. This Brand Profile is the permanent header for every future prompt. Never skip — it's what makes content sound like the client.",
+        prompt: `Here are my notes from a discovery call with [BUSINESS NAME]:
+
+Business: [NAME] — [TYPE] in [CITY]
+Differentiator: [WHAT MAKES THEM SPECIAL]
+Target customer: [AGE, LIFESTYLE, NEEDS]
+Promotions coming up: [LIST]
+Brand vibe: [HOW THEY DESCRIBED IT]
+Never say: [WORDS TO AVOID]
+Competitors they admire: [HANDLES]
+
+Please create:
+1. Brand Voice Guide — 2–3 sentences on tone + 5 do's and 5 don'ts
+2. Four content pillars (name + 1-sentence description each)
+3. Ideal customer one-liner
+4. Three sample caption openers in their voice
+
+Format with clear headers. I'll paste this into Notion.`,
+        output: "Saved in Notion as '[Client] — Brand Profile'. Every future prompt starts with this pasted at the top." },
+      { phase: "WEEK 1", phaseColor: "#2563EB", num: "03", title: "Build Content Calendar", tool: "Claude + Google Sheets", time: "20 min",
+        what: "Generate a 12-post calendar for the full month. Paste Brand Profile first. Export into Google Sheets and share a view-only link with the client.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+
+Create a 12-post Instagram content calendar for [MONTH].
+
+Upcoming promotions: [LIST]
+
+Rules:
+- 3 posts per week (Wed, Fri, Sat)
+- Rotate through all 4 content pillars evenly
+- Format: Date | Pillar | Post Topic | Caption Direction (2 sentences)
+- Flag any post needing a specific photo from [BUSINESS NAME]`,
+        output: "12-row table in Google Sheets. Share view-only link with client." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "04", title: "Write All Captions", tool: "Claude", time: "40 min",
+        what: "Write all 12 captions in one session, batched by 4. Always paste Brand Profile first. Group by content pillar for voice consistency.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+
+Write Instagram captions for these 4 posts:
+
+1. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+2. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+3. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+4. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+
+For each:
+- 3–5 warm, conversational lines
+- Soft CTA (book, visit, link in bio)
+- 10 relevant hashtags on a separate line
+- Do NOT use: [DON'TS FROM [BUSINESS NAME] BRAND PROFILE]`,
+        output: "12 captions in Google Doc '[Client] — [Month] Captions', named by date." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "05", title: "Design All Graphics", tool: "Canva Magic Studio", time: "2–3 hrs",
+        what: "Open client Brand Kit in Canva. Use saved post template. Swap in client photo, adjust text overlay. Use Canva AI for missing photos.",
+        prompt: `Canva Magic Studio text-to-image for [BUSINESS NAME]:
+
+A [BRAND VIBE — warm/bright/dramatic] photo of [SUBJECT]
+at [LOCATION/SETTING]. [LIGHTING: soft natural / golden hour / studio].
+No faces visible. [STYLE matching [BUSINESS NAME] aesthetic].
+Square format, lifestyle/product photography style.`,
+        output: "12 PNG files named by date: 'Feb05_CraftPost_IG.png'. Uploaded to [Client] Google Drive." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "06", title: "Upload & Send for Approval", tool: "Later.com", time: "15 min",
+        what: "Upload all 12 posts to Later. Set scheduled times. Generate Approval link. Text client with 48-hour deadline.",
+        prompt: `Text to [CLIENT NAME]:
+
+"Hi [NAME]! Your [MONTH] content is ready 🎉
+
+Approval link: [LATER LINK]
+
+Tap Approve or leave a comment for changes.
+Deadline: [DATE — 48 hrs]. Takes ~5 min. Thank you!"`,
+        output: "Client approves in ~5 min. Revision notes come through Later's comment system." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "07", title: "Schedule & Auto-Publish", tool: "Later.com", time: "5 min",
+        what: "Click Auto-Schedule in Later. It fills in optimal times based on audience activity. All 12 posts publish automatically. Done until end of month.",
+        prompt: null,
+        output: "All 12 posts published at optimal times. Later sends daily confirmation. Done until end of month." },
+      { phase: "END OF MONTH", phaseColor: "#7C3AED", num: "08", title: "Monthly Performance Report", tool: "Later Analytics + Claude", time: "15 min",
+        what: "Export month's analytics from Later. Paste into Claude. Email the report on the last day of the month.",
+        prompt: `Stats for [BUSINESS NAME] — [MONTH]:
+
+Platform: [IG/FB] | Posts: 12
+Impressions: [X] | Reach: [X] | New Followers: +[X]
+Top Post: [topic] — [X] impressions | Engagement Rate: [X]%
+
+Write a professional 1-page monthly report for [BUSINESS NAME]:
+1. 2–3 sentence highlights summary
+2. Key metrics table
+3. Top post — what it was and why it worked
+4. Two recommendations for next month
+5. Warm closing line
+
+Tone: professional but friendly. Goes to [OWNER NAME] at [BUSINESS NAME].`,
+        output: "1-page report emailed to client. Opens renewal and upsell conversation." },
+    ],
+  },
+  growth: {
+    tagline: "The Full System",
+    description: "Growth doubles post volume, adds a second platform, and introduces platform-specific captions and hashtag strategy. The sweet spot for most clients — enough presence to build genuine momentum across both Instagram and Facebook.",
+    addedOver: "Starter",
+    addedItems: [
+      "8 additional posts/month (20 total)",
+      "Second platform — Instagram AND Facebook",
+      "Platform-specific caption variations (not just reposts)",
+      "Tailored hashtag strategy per content pillar",
+      "CTA optimisation per platform",
+      "Cross-posting logic — which posts go both places, which are native",
+    ],
+    deliverables: [
+      { icon: "📄", item: "20 posts/month", detail: "5 posts per week across both platforms" },
+      { icon: "📱", item: "2 platforms", detail: "Instagram AND Facebook" },
+      { icon: "✍️", item: "Platform-specific captions", detail: "Distinct tone and format per platform" },
+      { icon: "🎯", item: "Hashtag strategy", detail: "Pillar-specific sets, refreshed monthly" },
+      { icon: "🔁", item: "Cross-posting logic", detail: "Some posts both platforms, some native" },
+      { icon: "🎨", item: "Dual-size graphics", detail: "1080×1080 for IG, 1200×630 for FB" },
+      { icon: "✅", item: "Single approval link", detail: "Both platforms in one Later review" },
+      { icon: "📅", item: "Auto-scheduled on both", detail: "Platform-optimised posting times" },
+      { icon: "📊", item: "Dual-platform monthly report", detail: "Comparative IG vs FB performance" },
+    ],
+    techStack: [
+      { tool: "Claude", cost: "$20/mo", role: "Platform captions, hashtag sets, cross-posting strategy, report" },
+      { tool: "Canva Pro", cost: "$15/mo", role: "Graphics in multiple sizes, Brand Kit" },
+      { tool: "Later.com", cost: "$18/mo", role: "Multi-platform scheduling, approval, analytics" },
+      { tool: "Otter.ai", cost: "$10/mo", role: "Transcribe onboarding call" },
+      { tool: "Notion (free)", cost: "$0", role: "Brand profile + cross-platform calendar" },
+    ],
+    steps: [
+      { phase: "ONBOARDING", phaseColor: "#D97706", num: "01", title: "Discovery Call + Platform Audit", tool: "Zoom + Otter.ai", time: "35 min",
+        what: "Same as Starter discovery call plus 5 min auditing both platforms. Ask which platform customers are most active on. Note follower count, last post date, and content style for each.",
+        prompt: null,
+        output: "Otter transcript. Notes on both platforms saved in Notion. Brand Profile prompt identical to Starter." },
+      { phase: "ONBOARDING", phaseColor: "#D97706", num: "02", title: "Brand Profile + Platform Strategy", tool: "Claude", time: "20 min",
+        what: "Run Brand Profile prompt (same as Starter), then a second prompt to define the cross-posting strategy — which posts are platform-native and which get adapted.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+
+[BUSINESS NAME] is on both Instagram and Facebook.
+
+Define their cross-posting strategy:
+1. Which content pillars work best natively on IG vs FB?
+2. Which pillars should always appear on both platforms?
+3. How should captions differ?
+   - Instagram: tone, length, hashtag approach
+   - Facebook: tone, length, link/CTA approach
+4. Give 3 example opening lines per platform to illustrate the tone difference for [BUSINESS NAME].`,
+        output: "Platform Strategy saved in Notion alongside Brand Profile. Referenced for every Growth caption." },
+      { phase: "WEEK 1", phaseColor: "#2563EB", num: "03", title: "Build 20-Post Cross-Platform Calendar", tool: "Claude + Google Sheets", time: "25 min",
+        what: "Generate a 20-post calendar across IG and FB. Use cross-posting strategy to decide which posts appear on both. IG and FB each get their own rows — Later treats them as separate posts.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+[PASTE PLATFORM STRATEGY FOR [BUSINESS NAME]]
+
+Create a 20-post content calendar for [MONTH] across Instagram and Facebook.
+Upcoming promotions for [BUSINESS NAME]: [LIST]
+
+Rules:
+- 10 posts Instagram, 10 Facebook
+- At least 6 adapted (same image, different caption)
+- At least 4 platform-native
+- No more than 2 posts on any single day
+- Format: Date | Platform | Pillar | Topic | Direction | Native or Adapted?`,
+        output: "20-row table in Google Sheets with two tabs: Instagram and Facebook." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "04", title: "Write Instagram Captions", tool: "Claude", time: "30 min",
+        what: "Write all 10 IG captions in one session. Paste Brand Profile + Platform Strategy. Instagram: shorter, visual, hashtag-heavy. Batch in groups of 5.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+[PASTE PLATFORM STRATEGY — IG SECTION]
+
+Write Instagram captions for [BUSINESS NAME] — these 5 posts:
+1. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+2. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+3. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+4. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+5. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+
+IG rules:
+- 2–4 punchy lines, first line must stop the scroll
+- CTA: link in bio or save this post
+- 10–15 hashtags (niche + local + broad)
+- Do NOT use: [DON'TS FROM [BUSINESS NAME] BRAND PROFILE]`,
+        output: "10 Instagram captions in Google Doc. Repeat for second batch of 5." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "05", title: "Write Facebook Captions", tool: "Claude", time: "25 min",
+        what: "For adapted posts: paste IG caption and ask Claude to rewrite for Facebook. For native posts: write fresh. Facebook = longer, conversational, direct links, no hashtags.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+[PASTE PLATFORM STRATEGY — FB SECTION]
+
+Rewrite these 4 Instagram captions for [BUSINESS NAME] on Facebook:
+[Paste IG caption 1]
+[Paste IG caption 2]
+[Paste IG caption 3]
+[Paste IG caption 4]
+
+Facebook rules for [BUSINESS NAME]:
+- More conversational, 4–6 lines OK
+- Include direct link or phone CTA
+- No hashtags (remove them)
+- Can ask a question to drive comments
+
+Then write these 2 platform-native FB posts fresh:
+5. [Date] — [Pillar] — [Topic]. Direction: [from calendar]
+6. [Date] — [Pillar] — [Topic]. Direction: [from calendar]`,
+        output: "10 Facebook captions in Google Doc. All 20 captions complete." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "06", title: "Design Graphics — Both Sizes", tool: "Canva Pro", time: "3–4 hrs",
+        what: "Adapted posts: design 1080×1080 (IG), duplicate and resize to 1200×630 (FB). Native posts: correct size only. Brand Kit throughout.",
+        prompt: `Canva / Adobe Firefly for [BUSINESS NAME]:
+
+A [BRAND VIBE] photo of [SUBJECT] at [SETTING].
+[LIGHTING]. No faces visible. [STYLE matching [BUSINESS NAME]].
+Horizontal format for Facebook, square for Instagram.`,
+        output: "20 files: '[Client]_Feb07_Post_IG.png' and '[Client]_Feb07_Post_FB.png' for adapted posts." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "07", title: "Upload & Send for Approval", tool: "Later.com", time: "20 min",
+        what: "Upload all 20 posts to Later (IG and FB as separate queues). Multi-platform approval link shows client all posts grouped by platform.",
+        prompt: `Text to [CLIENT NAME] at [BUSINESS NAME]:
+
+"Hi [NAME]! Your [MONTH] content for Instagram and Facebook is ready 🎉
+
+Approval link: [LATER LINK]
+
+You'll see posts for both platforms. Tap Approve or leave a comment.
+Deadline: [DATE — 48 hrs]. ~5 min to review!"`,
+        output: "Client sees 20 posts across 2 platforms. Approves in one sitting through Later." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "08", title: "Schedule Across Both Platforms", tool: "Later.com", time: "5 min",
+        what: "Use Later's Best Time to Post separately for IG and FB — optimal times differ. Auto-schedule all 20 posts.",
+        prompt: null,
+        output: "20 posts scheduled. IG at IG-optimal times, FB at FB-optimal times. Zero manual effort." },
+      { phase: "END OF MONTH", phaseColor: "#7C3AED", num: "09", title: "Cross-Platform Performance Report", tool: "Later Analytics + Claude", time: "20 min",
+        what: "Export analytics from both platforms in Later. Paste into Claude. Report compares both platforms and makes platform-specific recommendations.",
+        prompt: `Stats for [BUSINESS NAME] — [MONTH]:
+
+INSTAGRAM: Posts:10 | Impressions:[X] | Reach:[X] | Followers:+[X]
+Engagement:[X]% | Top Post: [topic]
+
+FACEBOOK: Posts:10 | Reach:[X] | Reactions:[X] | Followers:+[X]
+Engagement:[X]% | Top Post: [topic]
+
+Write a 1-page monthly report for [OWNER NAME] at [BUSINESS NAME]:
+1. Overall highlights across both platforms
+2. Side-by-side metrics table (IG vs FB)
+3. Best post on each platform and why it worked
+4. Which platform drives more value right now
+5. Two recommendations (one per platform)
+6. Warm closing line`,
+        output: "Dual-platform report emailed to client. Shows the value of both channels." },
+    ],
+  },
+  pro: {
+    tagline: "The Growth Engine",
+    description: "Pro is the full-service package. Everything in Growth plus a third platform, Reels scripts, Instagram Stories sequences, a monthly strategy call, and competitor audits. Highest margin tier — most extra work is scripting, which Claude handles fast.",
+    addedOver: "Growth",
+    addedItems: [
+      "10 additional posts/month (30 total)",
+      "Third platform — TikTok OR LinkedIn",
+      "4 Reels scripts/month — hook, shot list, overlays, caption",
+      "4 Instagram Stories sequences/month (3–5 slides each)",
+      "Monthly 15-min strategy review call",
+      "Monthly competitor content audit (2 competitors)",
+      "24-hour priority approval window",
+    ],
+    deliverables: [
+      { icon: "📄", item: "30 posts/month", detail: "Across 3 platforms" },
+      { icon: "📱", item: "3 platforms", detail: "Instagram + Facebook + TikTok or LinkedIn" },
+      { icon: "🎬", item: "4 Reels scripts/month", detail: "Hook, shot list, on-screen text, caption, hashtags" },
+      { icon: "📖", item: "4 Stories sequences/month", detail: "3–5 slides with interactive elements" },
+      { icon: "📞", item: "Monthly strategy call", detail: "15 min review + next month planning" },
+      { icon: "🔍", item: "Competitor audit", detail: "Monthly snapshot of 2 competitors" },
+      { icon: "✅", item: "24-hr priority approval", detail: "Faster turnaround than lower tiers" },
+      { icon: "📅", item: "Auto-scheduled on all 3", detail: "Later + native schedulers" },
+      { icon: "📊", item: "Full multi-platform report", detail: "All 3 platforms + Reels + competitor notes" },
+    ],
+    techStack: [
+      { tool: "Claude", cost: "$20/mo", role: "All captions, Reels scripts, Stories, competitor audit, report" },
+      { tool: "Canva Pro", cost: "$15/mo", role: "Graphics in 3 sizes, Stories slides, Reels covers" },
+      { tool: "Later.com", cost: "$18/mo", role: "IG + FB scheduling, approval, analytics" },
+      { tool: "TikTok Scheduler", cost: "$0", role: "Schedule TikTok posts natively" },
+      { tool: "LinkedIn Scheduler", cost: "$0", role: "Schedule LinkedIn posts natively" },
+      { tool: "Otter.ai", cost: "$10/mo", role: "Transcribe onboarding + monthly strategy call" },
+      { tool: "Adobe Firefly", cost: "$10/mo", role: "AI images for Reels covers + Stories" },
+      { tool: "Notion (free)", cost: "$0", role: "Full strategy hub: profile, calendar, competitor notes" },
+    ],
+    steps: [
+      { phase: "ONBOARDING", phaseColor: "#D97706", num: "01", title: "Extended Discovery + Platform Selection", tool: "Zoom + Otter.ai", time: "45 min",
+        what: "Full discovery call plus 15 min on the third platform. TikTok for new customers; LinkedIn for B2B. Establish content goals per platform. Otter transcribes everything.",
+        prompt: null,
+        output: "Otter transcript. Notes include platform priority and primary goal per platform. Saved in Notion strategy hub." },
+      { phase: "ONBOARDING", phaseColor: "#D97706", num: "02", title: "Brand Profile + 3-Platform Strategy", tool: "Claude", time: "30 min",
+        what: "Run Brand Profile prompt (same as Starter), then a second prompt for the full 3-platform strategy. Each platform gets its own goal, tone, and format guidance.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+
+[BUSINESS NAME] is on Instagram, Facebook, and [TIKTOK/LINKEDIN].
+
+Define a 3-platform content strategy for [BUSINESS NAME]. For each platform:
+1. Primary goal (awareness/engagement/leads/community)
+2. Tone vs other platforms
+3. Best content pillars for this platform
+4. Format notes (video vs static, caption length, hashtags)
+5. Post frequency out of 30 posts/month
+
+Also define: which posts cross all 3, which are 2-platform, which are native only.`,
+        output: "3-Platform Strategy saved in Notion. Master reference for all content decisions." },
+      { phase: "ONBOARDING", phaseColor: "#D97706", num: "03", title: "Competitor Audit (Month 1)", tool: "Claude + manual review", time: "20 min",
+        what: "Review the last 9 posts of 2 named competitors. Note best-performing content types, frequency, and gaps. Paste into Claude for a positioning summary.",
+        prompt: `Notes on two competitors of [BUSINESS NAME]:
+
+COMPETITOR 1 — @[HANDLE]:
+Frequency: [X/wk] | Types: [photos/videos/carousels]
+Top performing: [desc] | Tone: [adj] | Gaps: [notes]
+
+COMPETITOR 2 — @[HANDLE]: [same format]
+
+[BUSINESS NAME] brand summary: [brief from brand profile]
+
+Write a competitor positioning summary:
+1. Two biggest content opportunities competitors are missing
+2. Two angles that differentiate [BUSINESS NAME] immediately
+3. Formats competitors underuse`,
+        output: "Competitor audit in Notion. Referenced when building Pro content calendar each month." },
+      { phase: "WEEK 1", phaseColor: "#2563EB", num: "04", title: "Build 30-Post Calendar + Reels Plan", tool: "Claude + Google Sheets", time: "35 min",
+        what: "Full 30-post calendar across all 3 platforms plus a Reels plan for the 4 scripted videos.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+[PASTE 3-PLATFORM STRATEGY FOR [BUSINESS NAME]]
+
+Create a 30-post content calendar for [MONTH] across IG, FB, and [TIKTOK/LINKEDIN].
+Distribution: ~12 IG, 10 FB, 8 [3rd platform]
+Upcoming promotions for [BUSINESS NAME]: [LIST]
+Competitor opportunities this month: [FROM AUDIT]
+
+Rules:
+- 4 Reels (IG) — mark clearly
+- 4 Stories sequences (IG) — mark clearly
+- No more than 2 posts per day across all platforms
+- Format: Date|Platform|Format|Pillar|Topic|Direction|Cross-post?
+
+After the calendar, list the 4 Reels concepts:
+Reel 1: [week] — [concept]
+Reel 2: [week] — [concept]
+Reel 3: [week] — [concept]
+Reel 4: [week] — [concept]`,
+        output: "30-row calendar in Google Sheets. 3 tabs (IG, FB, 3rd platform) + Reels Plan tab." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "05", title: "Write Captions — All 3 Platforms", tool: "Claude", time: "50 min",
+        what: "Platform by platform: IG first (12), FB adaptations (10), then 3rd platform (8). Same batching — 4–5 per prompt, Brand Profile always pasted first.",
+        prompt: `[For TikTok — adjust for LinkedIn as needed]
+[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+[PASTE TIKTOK SECTION OF PLATFORM STRATEGY]
+
+Write TikTok captions for [BUSINESS NAME] — 4 posts:
+1. [Date] — [Topic]. Direction: [from calendar]
+2. [Date] — [Topic]. Direction: [from calendar]
+3. [Date] — [Topic]. Direction: [from calendar]
+4. [Date] — [Topic]. Direction: [from calendar]
+
+TikTok rules for [BUSINESS NAME]:
+- First line = the hook (stop the scroll)
+- 2–3 lines max
+- 3–5 hashtags (niche + 1 trending)
+- Include text overlay suggestion
+- CTA: Follow, Comment, or Share`,
+        output: "30 captions across 3 Google Docs (one per platform), named by date." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "06", title: "Write 4 Reels Scripts", tool: "Claude", time: "30 min",
+        what: "The key Pro differentiator. Each script: hook (first 3 sec), shot-by-shot breakdown, on-screen text, voiceover option, and full caption. One prompt per Reel.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+
+Write a full Instagram Reels script for [BUSINESS NAME]:
+
+Concept: [1-SENTENCE CONCEPT FROM CALENDAR]
+Goal: [AWARENESS / SHOWCASE PRODUCT / DRIVE BOOKINGS]
+
+Include:
+1. HOOK (first 2–3 sec): on-screen visual + text overlay
+2. SHOT LIST: 4–6 shots with description + duration
+   - Shot 1: [what, how long, angle]
+   - Shot 2: ...
+3. ON-SCREEN TEXT: overlays per shot (under 6 words each)
+4. VOICEOVER: optional 15–20 second script
+5. CAPTION: full IG caption + CTA + 15 hashtags
+6. BEST TIME TO POST: day + time recommendation`,
+        output: "4 Reels scripts in Google Doc. Sent to client: 'Each takes ~10 min to film with a phone.'" },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "07", title: "Write 4 Stories Sequences", tool: "Claude", time: "20 min",
+        what: "Each sequence is 3–5 slides to hold attention and drive a specific action. Write slide-by-slide copy, then design in Canva using a 1080×1920 template.",
+        prompt: `[PASTE BRAND PROFILE FOR [BUSINESS NAME]]
+
+Write a 4-slide Instagram Stories sequence for [BUSINESS NAME]:
+Topic: [TOPIC FROM CALENDAR]
+Goal: [DRIVE BOOKINGS / BUILD EXCITEMENT / GET POLL ENGAGEMENT]
+
+Slide 1 — Hook: what to show to make them tap through?
+Slide 2 — Value: one key fact, visual, or teaser
+Slide 3 — Engagement: poll or question sticker (exact copy)
+Slide 4 — CTA: what do you want them to do next?
+
+For each slide:
+- Background suggestion
+- Main text (under 8 words)
+- Interactive element (sticker, poll, etc.)`,
+        output: "4 Stories scripts in Google Doc. Design 1080×1920 slides in Canva." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "08", title: "Design All Graphics — 3 Sizes", tool: "Canva Pro + Adobe Firefly", time: "5–6 hrs",
+        what: "Produce all formats: 1080×1080 (IG/FB square), 1200×630 (FB landscape), 1080×1920 (Stories), Reels cover frames. Use Adobe Firefly for Reels/Stories imagery.",
+        prompt: `Adobe Firefly for [BUSINESS NAME] Reels cover:
+
+A [VIBRANT/WARM/DRAMATIC] hero image for a Reels video about [TOPIC].
+[LIGHTING STYLE]. [SUBJECT/SCENE matching [BUSINESS NAME] brand].
+No text, no faces. [BRAND AESTHETIC].
+Vertical format (9:16), cinematic quality.`,
+        output: "Full asset library in Google Drive: IG, FB, Stories, and Reels covers folders." },
+      { phase: "WEEK 2", phaseColor: "#059669", num: "09", title: "Upload & Send for Priority Approval", tool: "Later + Native Schedulers", time: "25 min",
+        what: "Upload IG and FB to Later. Upload TikTok/LinkedIn to native schedulers. Send Later approval link for IG/FB. Send Reels scripts + Stories as a separate Google Doc. 24-hr deadline.",
+        prompt: `Text to [CLIENT NAME] at [BUSINESS NAME]:
+
+"Hi [NAME]! Full [MONTH] content package is ready 🎉
+
+IG + FB approval: [LATER LINK]
+Reels + Stories scripts: [GOOGLE DOC LINK]
+
+Deadline: [DATE — 24 hrs].
+Each Reel takes ~10 min to film with your phone!"`,
+        output: "Client approves static posts in Later. Reviews Reels scripts. Filming plan confirmed." },
+      { phase: "WEEK 3", phaseColor: "#2563EB", num: "10", title: "Schedule Across All 3 Platforms", tool: "Later + TikTok/LinkedIn", time: "10 min",
+        what: "Auto-schedule IG and FB in Later. Schedule TikTok in TikTok's native scheduler (free). Schedule LinkedIn in LinkedIn's native scheduler. All platforms publish automatically.",
+        prompt: null,
+        output: "30 posts scheduled across 3 platforms. Publish automatically all month." },
+      { phase: "END OF MONTH", phaseColor: "#7C3AED", num: "11", title: "Monthly Strategy Call", tool: "Zoom + Otter.ai", time: "15 min",
+        what: "Review the month's results, discuss what worked, confirm next month's focus. Otter transcribes. Sets up next month's calendar and is a natural upsell moment.",
+        prompt: null,
+        output: "Otter transcript. Notion notes. Next month confirmed. Invoice renewed." },
+      { phase: "END OF MONTH", phaseColor: "#7C3AED", num: "12", title: "Full Multi-Platform Report", tool: "Later Analytics + Claude", time: "25 min",
+        what: "Export analytics from all platforms. Quick competitor check (5 min). Paste into Claude. Most comprehensive report — 3 platforms, Reels performance, competitor notes.",
+        prompt: `Stats for [BUSINESS NAME] — [MONTH]:
+
+INSTAGRAM (incl. Reels):
+Posts:12 | Reels:4 | Impressions:[X] | Reach:[X] | Followers:+[X]
+Top Reel: [topic]—[X] views | Best static: [topic]
+
+FACEBOOK:
+Posts:10 | Reach:[X] | Reactions:[X] | Followers:+[X]
+
+[TIKTOK/LINKEDIN]:
+Posts:8 | Views:[X] | Followers:+[X] | Top: [topic]
+
+COMPETITOR UPDATE:
+@[COMP1]: [2-sentence note]
+@[COMP2]: [2-sentence note]
+
+Write a 1.5-page monthly report for [OWNER NAME] at [BUSINESS NAME]:
+1. Executive summary (all 3 platforms)
+2. Platform-by-platform metrics table
+3. Reels performance breakdown
+4. Competitor update + 1 opportunity it reveals
+5. Three strategic recommendations for next month
+6. Professional, warm closing`,
+        output: "Full report emailed before strategy call. Call becomes a conversation, not a data dump." },
+    ],
+  },
+};
+
+// ─── Onboarding questions ────────────────────────────────────────────────────
+const ONBOARDING_QUESTIONS = [
+  { id: "businessName",   label: "Business Name",           placeholder: "e.g. Bella's Bistro",           required: true },
+  { id: "ownerName",      label: "Owner / Contact Name",    placeholder: "e.g. Sofia Conti",              required: true },
+  { id: "businessType",   label: "Business Type",           placeholder: "e.g. Italian Restaurant",       required: true },
+  { id: "city",           label: "City / Location",         placeholder: "e.g. Austin, TX",               required: true },
+  { id: "differentiator", label: "What makes them special", placeholder: "e.g. Fresh pasta made daily",   required: true },
+  { id: "targetCustomer", label: "Ideal customer",          placeholder: "e.g. Couples, foodies aged 28–45", required: true },
+  { id: "brandVibe",      label: "Brand vibe",              placeholder: "e.g. Warm, old-world Italian",  required: true },
+  { id: "platform",       label: "Primary platform",        placeholder: "e.g. Instagram",                required: true },
+  { id: "promotions",     label: "Upcoming promotions",     placeholder: "e.g. Valentine's menu, Sunday brunch launch", required: false },
+  { id: "avoidWords",     label: "Words to NEVER use",      placeholder: "e.g. authentic, fresh",         required: false },
+  { id: "competitors",    label: "Competitors they admire", placeholder: "e.g. @localbrasserie",          required: false },
+  { id: "brandColors",    label: "Brand colours (hex)",     placeholder: "e.g. #8B2020, #F5F0E8",        required: false },
+];
+
+// ─── Helper to inject client data into prompts ───────────────────────────────
+function injectClient(text, client) {
+  if (!client || !client.businessName) return text;
+  return text
+    .replace(/\[BUSINESS NAME\]/g,   client.businessName)
+    .replace(/\[NAME\]/g,            client.businessName)
+    .replace(/\[CLIENT NAME\]/g,     client.ownerName || client.businessName)
+    .replace(/\[OWNER NAME\]/g,      client.ownerName || "the owner")
+    .replace(/\[TYPE\]/g,            client.businessType || "local business")
+    .replace(/\[CITY\]/g,            client.city || "your city")
+    .replace(/\[WHAT MAKES THEM SPECIAL\]/g, client.differentiator || "their unique approach")
+    .replace(/\[AGE, LIFESTYLE, NEEDS\]/g,   client.targetCustomer || "local customers")
+    .replace(/\[HOW THEY DESCRIBED IT\]/g,   client.brandVibe || "warm and welcoming")
+    .replace(/\[WORDS TO AVOID\]/g,          client.avoidWords || "none specified")
+    .replace(/\[HANDLES\]/g,                 client.competitors || "none specified")
+    .replace(/\[LIST\]/g,                    client.promotions || "none specified")
+    .replace(/\[DON'TS FROM \[BUSINESS NAME\] BRAND PROFILE\]/g, client.avoidWords || "words to avoid from brand profile")
+    .replace(/\[DON'TS FROM.*?BRAND PROFILE\]/g, client.avoidWords || "words from brand profile")
+    .replace(/\[BRAND VIBE\]/g,              client.brandVibe || "warm and inviting")
+    .replace(/\[BRAND VIBE — [^\]]+\]/g,     client.brandVibe || "warm and inviting");
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+export default function TierWorkflows() {
+  const [activeTier, setActiveTier]       = useState("starter");
+  const [activeTab, setActiveTab]         = useState("overview");
+  const [expandedStep, setExpandedStep]   = useState(null);
+  const [mode, setMode]                   = useState("reference");   // reference | workspace | checklist | onboarding
+  const [client, setClient]               = useState({});
+  const [clientDraft, setClientDraft]     = useState({});
+  const [clientSaved, setClientSaved]     = useState(false);
+  const [checked, setChecked]             = useState({});
+  const [onbStep, setOnbStep]             = useState(0);
+  const [copied, setCopied]               = useState(null);
+
+  const tier = TIERS[activeTier];
+  const tc   = T[activeTier];
+  const hasClient = clientSaved && client.businessName;
+
+  const totalSteps = tier.steps.length;
+  const completedSteps = Object.keys(checked).filter(k => k.startsWith(activeTier + "-") && checked[k]).length;
+
+  function toggleCheck(key) {
+    setChecked(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function copyPrompt(text, id) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  function saveClient() {
+    setClient({ ...clientDraft });
+    setClientSaved(true);
+    setMode("workspace");
+  }
+
+  function resetChecks() {
+    const newChecked = { ...checked };
+    tier.steps.forEach(s => delete newChecked[`${activeTier}-${s.num}`]);
+    setChecked(newChecked);
+  }
+
+  // ── Onboarding packet text ──────────────────────────────────────────────
+  const packetText = hasClient ? `
+CLIENT ONBOARDING PACKET
+========================
+${client.businessName} — ${client.businessType}
+${client.city || ""}
+Prepared for: ${client.ownerName || "the owner"}
+Package: ${tc.name} (${tc.price})
+
+CONTACT INFO
+------------
+Business: ${client.businessName}
+Owner: ${client.ownerName || "—"}
+City: ${client.city || "—"}
+Platform: ${client.platform || "—"}
+
+BRAND SNAPSHOT
+--------------
+What makes ${client.businessName} special:
+${client.differentiator || "—"}
+
+Ideal customer:
+${client.targetCustomer || "—"}
+
+Brand vibe:
+${client.brandVibe || "—"}
+
+Words to NEVER use:
+${client.avoidWords || "—"}
+
+Upcoming promotions:
+${client.promotions || "—"}
+
+Competitors they admire:
+${client.competitors || "—"}
+
+Brand colours: ${client.brandColors || "—"}
+
+BRAND PROFILE PROMPT (paste into Claude)
+-----------------------------------------
+Here are my notes from a discovery call with ${client.businessName}:
+
+Business: ${client.businessName} — ${client.businessType || ""} in ${client.city || ""}
+Differentiator: ${client.differentiator || ""}
+Target customer: ${client.targetCustomer || ""}
+Promotions coming up: ${client.promotions || "none"}
+Brand vibe: ${client.brandVibe || ""}
+Never say: ${client.avoidWords || "none"}
+Competitors they admire: ${client.competitors || "none"}
+
+Please create:
+1. Brand Voice Guide — 2–3 sentences on tone + 5 do's and 5 don'ts
+2. Four content pillars (name + 1-sentence description each)
+3. Ideal customer one-liner
+4. Three sample caption openers in their voice
+
+Format with clear headers. I'll paste this into Notion.
+
+MONTHLY TEXT TEMPLATE
+----------------------
+"Hi ${client.ownerName || "[Name]"}! Your [Month] content is ready 🎉
+
+Approval link: [LATER LINK]
+
+Tap Approve or leave a comment for changes.
+Deadline: [DATE — 48 hrs]. Takes ~5 min. Thank you!"
+
+GOOGLE DRIVE FOLDER
+--------------------
+Suggested name: ${client.businessName} — Social Media
+Subfolders: Photos | Approved Posts | Reports
+`.trim() : "";
+
+  // ── Shared top bar ─────────────────────────────────────────────────────
+  const tabs = [
+    { id: "overview",   label: "📦 Overview" },
+    { id: "workflow",   label: "⚙️ Workflow" },
+  ];
+
+  const modes = [
+    { id: "reference",  label: "📖 Reference",          desc: "Browse tiers and prompts" },
+    { id: "workspace",  label: "🏢 Client Workspace",   desc: "Auto-fill prompts with client data" },
+    { id: "checklist",  label: "✅ Checklist",           desc: "Track progress step by step" },
+    { id: "onboarding", label: "📋 Onboarding Packet",  desc: "Generate client setup documents" },
+  ];
+
+  const inputStyle = {
+    width: "100%", background: "#0A0A0A", border: `1px solid ${BORD}`, borderRadius: 6,
+    color: LIGHT, fontSize: 13, padding: "10px 12px", fontFamily: "Georgia, serif",
+    outline: "none", boxSizing: "border-box",
+  };
+  const labelStyle = { fontSize: 11, color: MUTED, fontFamily: "monospace", letterSpacing: 1, marginBottom: 5, display: "block" };
+
+  return (
+    <div style={{ background: DARK, minHeight: "100vh", fontFamily: "'Georgia', serif", color: LIGHT }}>
+
+      {/* ── Global mode bar ── */}
+      <div style={{ background: "#070707", borderBottom: `1px solid ${BORD}`, padding: "10px 20px" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {modes.map(m => (
+            <button key={m.id} onClick={() => setMode(m.id)}
+              style={{
+                background: mode === m.id ? "#1E1E1E" : "transparent",
+                border: `1px solid ${mode === m.id ? tc.color : BORD}`,
+                color: mode === m.id ? tc.color : MUTED,
+                borderRadius: 6, padding: "6px 14px", cursor: "pointer",
+                fontSize: 12, fontFamily: "monospace", transition: "all 0.15s",
+              }}>
+              {m.label}
+              {m.id === "workspace" && hasClient && (
+                <span style={{ marginLeft: 6, background: GREEN, color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 9 }}>
+                  {client.businessName.split(" ")[0]}
+                </span>
+              )}
+              {m.id === "checklist" && completedSteps > 0 && (
+                <span style={{ marginLeft: 6, background: tc.color, color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 9 }}>
+                  {completedSteps}/{totalSteps}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── CLIENT WORKSPACE MODE ── */}
+      {mode === "workspace" && !clientSaved && (
+        <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 20px" }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: tc.color, fontFamily: "monospace", textTransform: "uppercase", marginBottom: 8 }}>Client Workspace</div>
+          <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 700 }}>Set up a client</h2>
+          <p style={{ margin: "0 0 28px", color: MUTED, fontSize: 13 }}>Fill in the details below and all workflow prompts will auto-populate with this client's information.</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+            {ONBOARDING_QUESTIONS.map(q => (
+              <div key={q.id} style={{ gridColumn: ["differentiator","targetCustomer","brandVibe","promotions","avoidWords"].includes(q.id) ? "span 2" : "span 1" }}>
+                <label style={labelStyle}>{q.label}{q.required && <span style={{ color: tc.color }}> *</span>}</label>
+                <input
+                  value={clientDraft[q.id] || ""}
+                  onChange={e => setClientDraft(prev => ({ ...prev, [q.id]: e.target.value }))}
+                  placeholder={q.placeholder}
+                  style={inputStyle}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 28, display: "flex", gap: 12 }}>
+            <button onClick={saveClient}
+              style={{ background: tc.color, border: "none", color: "#fff", padding: "13px 28px", borderRadius: 8, cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: "monospace" }}>
+              Save Client & Open Workspace →
+            </button>
+            <button onClick={() => setMode("reference")}
+              style={{ background: "none", border: `1px solid ${BORD}`, color: MUTED, padding: "13px 20px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "monospace" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ONBOARDING PACKET MODE ── */}
+      {mode === "onboarding" && (
+        <div style={{ maxWidth: 800, margin: "0 auto", padding: "32px 20px" }}>
+          <div style={{ fontSize: 10, letterSpacing: 4, color: tc.color, fontFamily: "monospace", textTransform: "uppercase", marginBottom: 8 }}>Onboarding Packet Generator</div>
+          <h2 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 700 }}>Generate a client setup packet</h2>
+          <p style={{ margin: "0 0 24px", color: MUTED, fontSize: 13 }}>Creates a ready-to-use document with brand profile prompt, monthly text templates, and folder structure.</p>
+
+          {!hasClient ? (
+            <div style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 10, padding: "28px 24px", textAlign: "center" }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>🏢</div>
+              <p style={{ color: MUTED, fontSize: 14, margin: "0 0 16px" }}>No client loaded yet. Set up a client in Workspace mode first.</p>
+              <button onClick={() => setMode("workspace")}
+                style={{ background: tc.color, border: "none", color: "#fff", padding: "11px 22px", borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "monospace" }}>
+                Set Up a Client →
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Header */}
+              <div style={{ background: CARD, border: `1px solid ${BORD}`, borderTop: `3px solid ${tc.color}`, borderRadius: "0 0 10px 10px", padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: LIGHT }}>{client.businessName}</div>
+                  <div style={{ fontSize: 12, color: MUTED, fontFamily: "monospace" }}>{client.businessType} · {client.city} · {tc.name} package</div>
+                </div>
+                <button onClick={() => copyPrompt(packetText, "packet")}
+                  style={{ background: copied === "packet" ? GREEN : tc.color, border: "none", color: "#fff", padding: "10px 18px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "monospace", transition: "background 0.2s" }}>
+                  {copied === "packet" ? "✓ Copied!" : "📋 Copy Full Packet"}
+                </button>
+              </div>
+
+              {/* Sections */}
+              {[
+                { title: "📝 Brand Profile Prompt", subtitle: "Paste this into Claude to generate the brand profile",
+                  content: `Here are my notes from a discovery call with ${client.businessName}:
+
+Business: ${client.businessName} — ${client.businessType || ""} in ${client.city || ""}
+Differentiator: ${client.differentiator || ""}
+Target customer: ${client.targetCustomer || ""}
+Promotions coming up: ${client.promotions || "none"}
+Brand vibe: ${client.brandVibe || ""}
+Never say: ${client.avoidWords || "none"}
+Competitors they admire: ${client.competitors || "none"}
+
+Please create:
+1. Brand Voice Guide — 2–3 sentences on tone + 5 do's and 5 don'ts
+2. Four content pillars (name + 1-sentence description each)
+3. Ideal customer one-liner
+4. Three sample caption openers in their voice
+
+Format with clear headers. I'll paste this into Notion.` },
+                { title: "💬 Monthly Text Template", subtitle: "Send this at the start of each month",
+                  content: `Hi ${client.ownerName || "[Name]"}! Your [Month] content is ready 🎉\n\nApproval link: [LATER LINK]\n\nTap Approve or leave a comment for changes.\nDeadline: [DATE — 48 hrs]. Takes ~5 min. Thank you!` },
+                { title: "📁 Google Drive Setup", subtitle: "Suggested folder structure for this client",
+                  content: `Main folder: ${client.businessName} — Social Media\n\nSubfolders:\n├── 📸 Photos (client uploads here monthly)\n├── ✅ Approved Posts\n│   ├── [Month Year]\n│   └── [Month Year]\n├── 📊 Reports\n│   └── [Month Year Report]\n└── 🎨 Brand Assets\n    ├── Logo\n    ├── Colours: ${client.brandColors || "add hex codes"}\n    └── Fonts` },
+                { title: "📋 Notion Setup", subtitle: "Pages to create in Notion for this client",
+                  content: `Page: ${client.businessName} — Hub\n\nSub-pages:\n1. Brand Profile (paste Claude output here)\n2. Platform Strategy (paste Claude output here)\n3. Content Calendars\n   └── [Month Year]\n4. Discovery Notes (paste Otter.ai transcript)\n5. Competitor Audit (updated monthly)\n6. Monthly Reports` },
+              ].map((section, si) => (
+                <div key={si} style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ padding: "14px 20px", borderBottom: `1px solid ${BORD}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: LIGHT }}>{section.title}</div>
+                      <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{section.subtitle}</div>
+                    </div>
+                    <button onClick={() => copyPrompt(section.content, `onb-${si}`)}
+                      style={{ background: copied === `onb-${si}` ? GREEN : "#1E1E1E", border: `1px solid ${copied === `onb-${si}` ? GREEN : BORD}`, color: copied === `onb-${si}` ? "#fff" : MUTED, borderRadius: 5, padding: "5px 12px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", transition: "all 0.2s" }}>
+                      {copied === `onb-${si}` ? "✓ Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <pre style={{ margin: 0, padding: "16px 20px", fontSize: 12, color: "#AAAAAA", lineHeight: 1.7, fontFamily: "monospace", whiteSpace: "pre-wrap", overflowX: "auto" }}>
+                    {section.content}
+                  </pre>
+                </div>
+              ))}
+
+              <button onClick={() => { setMode("workspace"); setClientSaved(false); setClientDraft(client); }}
+                style={{ background: "none", border: `1px solid ${BORD}`, color: MUTED, padding: "10px 18px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontFamily: "monospace", alignSelf: "flex-start" }}>
+                ✏️ Edit client details
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── REFERENCE / WORKSPACE / CHECKLIST — shared tier UI ── */}
+      {(mode === "reference" || (mode === "workspace" && clientSaved) || mode === "checklist") && (
+        <>
+          {/* Tier header */}
+          <div style={{ borderBottom: `1px solid ${BORD}`, padding: "24px 20px 0", background: "#090909" }}>
+            <div style={{ maxWidth: 900, margin: "0 auto" }}>
+              {/* Client badge (workspace mode) */}
+              {mode === "workspace" && hasClient && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, background: "#0D150D", border: `1px solid ${GREEN}33`, borderRadius: 8, padding: "8px 14px", width: "fit-content" }}>
+                  <span style={{ fontSize: 11, color: GREEN, fontFamily: "monospace", letterSpacing: 1 }}>🏢 CLIENT WORKSPACE</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: LIGHT }}>{client.businessName}</span>
+                  <span style={{ fontSize: 11, color: MUTED }}>{client.businessType} · {client.city}</span>
+                  <button onClick={() => { setClientSaved(false); setMode("workspace"); setClientDraft(client); }}
+                    style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 11, fontFamily: "monospace", padding: 0 }}>edit</button>
+                </div>
+              )}
+
+              {mode === "checklist" && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, letterSpacing: 3, color: tc.color, fontFamily: "monospace", textTransform: "uppercase" }}>Checklist Mode</div>
+                  <div style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontFamily: "monospace", color: completedSteps === totalSteps ? GREEN : tc.color }}>
+                    {completedSteps} / {totalSteps} steps complete
+                  </div>
+                  {completedSteps > 0 && (
+                    <button onClick={resetChecks} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 11, fontFamily: "monospace", padding: 0 }}>reset</button>
+                  )}
+                </div>
+              )}
+
+              <h1 style={{ margin: "0 0 18px", fontSize: "clamp(16px,3vw,22px)", fontWeight: 700 }}>
+                {mode === "checklist" ? "Step-by-Step Checklist" : "Service Tiers & Workflows"}
+              </h1>
+
+              {/* Tier selector */}
+              <div style={{ display: "flex", gap: 0 }}>
+                {Object.entries(T).map(([key, t]) => (
+                  <button key={key} onClick={() => { setActiveTier(key); setActiveTab("overview"); setExpandedStep(null); }}
+                    style={{
+                      background: activeTier === key ? t.color : "transparent",
+                      border: `1px solid ${activeTier === key ? t.color : BORD}`,
+                      color: activeTier === key ? "#fff" : MUTED,
+                      padding: "9px 22px", cursor: "pointer", fontFamily: "monospace", fontSize: 12, fontWeight: 700,
+                      borderRadius: key === "starter" ? "6px 0 0 0" : key === "pro" ? "0 6px 0 0" : "0",
+                      transition: "all 0.15s",
+                    }}>
+                    {t.name} <span style={{ opacity: 0.75, fontWeight: 400 }}>{t.price}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-tabs (not in checklist mode) */}
+          {mode !== "checklist" && (
+            <div style={{ borderBottom: `1px solid ${BORD}`, background: "#0D0D0D" }}>
+              <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px", display: "flex" }}>
+                {tabs.map(tab => (
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                    style={{
+                      background: "none", border: "none",
+                      borderBottom: activeTab === tab.id ? `2px solid ${tc.color}` : "2px solid transparent",
+                      color: activeTab === tab.id ? tc.color : MUTED,
+                      padding: "11px 16px", cursor: "pointer", fontFamily: "monospace",
+                      fontSize: 11, textTransform: "uppercase", letterSpacing: 2, transition: "color 0.15s",
+                    }}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── CHECKLIST TAB ── */}
+          {mode === "checklist" && (
+            <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px 60px" }}>
+              {/* Progress bar */}
+              <div style={{ background: BORD, borderRadius: 4, height: 6, marginBottom: 24, overflow: "hidden" }}>
+                <div style={{ background: tc.color, height: "100%", width: `${(completedSteps / totalSteps) * 100}%`, borderRadius: 4, transition: "width 0.4s" }} />
+              </div>
+
+              {(() => {
+                const phases = [...new Map(tier.steps.map(s => [s.phase, { phase: s.phase, color: s.phaseColor }])).values()];
+                return phases.map(({ phase, color }) => {
+                  const phaseSteps = tier.steps.filter(s => s.phase === phase);
+                  const phaseChecked = phaseSteps.filter(s => checked[`${activeTier}-${s.num}`]).length;
+                  return (
+                    <div key={phase} style={{ marginBottom: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                        <div style={{ background: color, padding: "4px 12px", borderRadius: 4, fontSize: 10, fontWeight: 700, fontFamily: "monospace", letterSpacing: 2, color: "#fff", textTransform: "uppercase" }}>
+                          {phase}
+                        </div>
+                        <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{phaseChecked}/{phaseSteps.length} done</span>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {phaseSteps.map(step => {
+                          const ck = `${activeTier}-${step.num}`;
+                          const done = !!checked[ck];
+                          return (
+                            <div key={ck}
+                              style={{ background: done ? "#0D1A0D" : CARD, border: `1px solid ${done ? GREEN + "55" : BORD}`, borderLeft: `3px solid ${done ? GREEN : color}`, borderRadius: "0 8px 8px 0", padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 14, cursor: "pointer", transition: "all 0.15s" }}
+                              onClick={() => toggleCheck(ck)}>
+                              <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${done ? GREEN : color + "66"}`, background: done ? GREEN : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1, transition: "all 0.15s" }}>
+                                {done && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                                  <span style={{ fontWeight: 700, fontSize: 14, color: done ? "#4ADE80" : LIGHT, textDecoration: done ? "line-through" : "none", opacity: done ? 0.7 : 1 }}>
+                                    {step.num}  {step.title}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: MUTED, fontFamily: "monospace" }}>{step.tool} · {step.time}</span>
+                                </div>
+                                {!done && <p style={{ margin: "6px 0 0", fontSize: 13, color: MUTED, lineHeight: 1.5 }}>{step.what}</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+
+              {completedSteps === totalSteps && (
+                <div style={{ background: "#0D1A0D", border: `1px solid ${GREEN}55`, borderRadius: 10, padding: "20px 24px", textAlign: "center", marginTop: 8 }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>🎉</div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: "#4ADE80", marginBottom: 4 }}>All steps complete for {tc.name}!</div>
+                  <div style={{ fontSize: 13, color: MUTED }}>Great work. Send the monthly report and you're done until next month.</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── OVERVIEW TAB ── */}
+          {mode !== "checklist" && activeTab === "overview" && (
+            <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px 60px", display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* Tier headline */}
+              <div style={{ background: CARD, border: `1px solid ${BORD}`, borderTop: `3px solid ${tc.color}`, borderRadius: "0 0 10px 10px", padding: "18px 22px" }}>
+                <div style={{ fontSize: 10, color: tc.color, fontFamily: "monospace", letterSpacing: 3, textTransform: "uppercase", marginBottom: 4 }}>{tc.name} — {tc.price}/month</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: LIGHT, marginBottom: 10 }}>{tier.tagline}</div>
+                <p style={{ margin: 0, color: "#BBBBBB", fontSize: 14, lineHeight: 1.75 }}>{tier.description}</p>
+              </div>
+
+              {tier.addedOver && (
+                <div style={{ background: CARD, border: `1px solid ${BORD}`, borderLeft: `4px solid ${tc.color}`, borderRadius: "0 8px 8px 0", padding: "16px 20px" }}>
+                  <div style={{ fontSize: 10, color: tc.color, fontFamily: "monospace", letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>✦ Added over {tier.addedOver}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {tier.addedItems.map((item, i) => (
+                      <div key={i} style={{ display: "flex", gap: 10 }}>
+                        <span style={{ color: tc.color, flexShrink: 0 }}>+</span>
+                        <span style={{ color: "#CCC", fontSize: 13.5, lineHeight: 1.5 }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: 3, color: MUTED, fontFamily: "monospace", textTransform: "uppercase", marginBottom: 10 }}>What the client gets every month</div>
+                <div style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 10, overflow: "hidden" }}>
+                  {tier.deliverables.map((d, i) => (
+                    <div key={i} style={{ display: "flex", gap: 14, padding: "12px 18px", borderBottom: i < tier.deliverables.length - 1 ? `1px solid ${BORD}` : "none", alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{d.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13.5, color: LIGHT, marginBottom: 2 }}>{d.item}</div>
+                        <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.5 }}>{d.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 10, letterSpacing: 3, color: MUTED, fontFamily: "monospace", textTransform: "uppercase", marginBottom: 10 }}>Tech stack for this tier</div>
+                <div style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 1fr", padding: "8px 18px", borderBottom: `1px solid ${BORD}`, background: "#1E1E1E" }}>
+                    {["Tool", "Cost", "Used For"].map(h => (
+                      <div key={h} style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", letterSpacing: 2, textTransform: "uppercase" }}>{h}</div>
+                    ))}
+                  </div>
+                  {tier.techStack.map((t, i) => (
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 60px 1fr", padding: "11px 18px", borderBottom: i < tier.techStack.length - 1 ? `1px solid ${BORD}` : "none", alignItems: "center" }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: LIGHT }}>{t.tool}</div>
+                      <div style={{ fontSize: 12, color: t.cost === "$0" ? "#4ADE80" : tc.color, fontFamily: "monospace", fontWeight: 700 }}>{t.cost}</div>
+                      <div style={{ fontSize: 12.5, color: "#AAA" }}>{t.role}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <button onClick={() => setActiveTab("workflow")}
+                style={{ background: tc.color, border: "none", color: "#fff", padding: "13px 26px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "monospace", alignSelf: "flex-start", letterSpacing: 1 }}>
+                See Full Workflow →
+              </button>
+            </div>
+          )}
+
+          {/* ── WORKFLOW TAB ── */}
+          {mode !== "checklist" && activeTab === "workflow" && (
+            <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px 60px" }}>
+              <div style={{ marginBottom: 12, color: MUTED, fontSize: 13, fontFamily: "monospace", display: "flex", gap: 16, alignItems: "center" }}>
+                <span>{tier.steps.length} steps · Click any step to expand</span>
+                {mode === "workspace" && hasClient && (
+                  <span style={{ color: GREEN, fontSize: 11 }}>✦ Prompts auto-filled for {client.businessName}</span>
+                )}
+              </div>
+
+              {(() => {
+                const phases = [...new Map(tier.steps.map(s => [s.phase, { phase: s.phase, color: s.phaseColor }])).values()];
+                return phases.map(({ phase, color }) => {
+                  const phaseSteps = tier.steps.filter(s => s.phase === phase);
+                  return (
+                    <div key={phase} style={{ marginBottom: 10 }}>
+                      <div style={{ background: color, padding: "5px 14px", borderRadius: "6px 6px 0 0", display: "inline-block", fontSize: 10, fontWeight: 700, fontFamily: "monospace", letterSpacing: 2, color: "#fff", textTransform: "uppercase" }}>
+                        {phase}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        {phaseSteps.map((step, si) => {
+                          const key = `${step.phase}-${step.num}`;
+                          const isOpen = expandedStep === key;
+                          const ck = `${activeTier}-${step.num}`;
+                          const done = !!checked[ck];
+                          const rawPrompt = step.prompt;
+                          const displayPrompt = rawPrompt && hasClient ? injectClient(rawPrompt, client) : rawPrompt;
+                          const promptId = `prompt-${activeTier}-${step.num}`;
+
+                          return (
+                            <div key={key} style={{ background: CARD, border: `1px solid ${isOpen ? color : BORD}`, borderLeft: `3px solid ${done ? GREEN : color}`, borderRadius: si === phaseSteps.length - 1 && !isOpen ? "0 0 8px 8px" : 0, overflow: "hidden", transition: "border-color 0.15s" }}>
+                              <button onClick={() => setExpandedStep(isOpen ? null : key)}
+                                style={{ width: "100%", background: "none", border: "none", padding: "13px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
+                                <div style={{ width: 26, height: 26, borderRadius: "50%", background: done ? GREEN + "22" : color + "22", border: `1px solid ${done ? GREEN + "66" : color + "66"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: done ? GREEN : color, fontWeight: 700, fontFamily: "monospace", flexShrink: 0 }}>
+                                  {done ? "✓" : step.num}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 700, fontSize: 13.5, color: LIGHT }}>{step.title}</div>
+                                  <div style={{ fontSize: 11, color: MUTED, marginTop: 2, fontFamily: "monospace" }}>{step.tool} · {step.time}</div>
+                                </div>
+                                {mode === "checklist" && (
+                                  <div onClick={e => { e.stopPropagation(); toggleCheck(ck); }}
+                                    style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${done ? GREEN : MUTED}`, background: done ? GREEN : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                                    {done && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
+                                  </div>
+                                )}
+                                <div style={{ color: isOpen ? color : MUTED, fontSize: 17, transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "none" }}>⌄</div>
+                              </button>
+
+                              {isOpen && (
+                                <div style={{ borderTop: `1px solid ${BORD}` }}>
+                                  <div style={{ padding: "14px 16px 12px", borderBottom: displayPrompt ? `1px solid ${BORD}` : "none" }}>
+                                    <div style={{ fontSize: 10, color: MUTED, fontFamily: "monospace", letterSpacing: 2, textTransform: "uppercase", marginBottom: 7 }}>What you do</div>
+                                    <p style={{ margin: 0, color: "#CCCCCC", fontSize: 13.5, lineHeight: 1.7 }}>{step.what}</p>
+                                  </div>
+
+                                  {displayPrompt && (
+                                    <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORD}` }}>
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                        <div style={{ fontSize: 10, color: color, fontFamily: "monospace", letterSpacing: 2, textTransform: "uppercase" }}>
+                                          {mode === "workspace" && hasClient ? `Prompt — filled for ${client.businessName}` : "Prompt to copy into Claude"}
+                                        </div>
+                                        <button onClick={() => copyPrompt(displayPrompt, promptId)}
+                                          style={{ background: copied === promptId ? GREEN : "#1E1E1E", border: `1px solid ${copied === promptId ? GREEN : BORD}`, color: copied === promptId ? "#fff" : MUTED, borderRadius: 5, padding: "4px 11px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", transition: "all 0.2s" }}>
+                                          {copied === promptId ? "✓ Copied!" : "Copy"}
+                                        </button>
+                                      </div>
+                                      <pre style={{ background: "#0A0A0A", border: `1px solid ${BORD}`, borderRadius: 6, padding: "13px 15px", fontSize: 11.5, color: "#AAAAAA", lineHeight: 1.65, overflowX: "auto", whiteSpace: "pre-wrap", fontFamily: "monospace", margin: 0 }}>
+                                        {displayPrompt}
+                                      </pre>
+                                    </div>
+                                  )}
+
+                                  <div style={{ padding: "12px 16px", background: "#0F1A0F", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: 10, color: "#4ADE80", fontFamily: "monospace", letterSpacing: 2, textTransform: "uppercase", marginBottom: 7 }}>Output</div>
+                                      <p style={{ margin: 0, color: "#A7F3A7", fontSize: 13, lineHeight: 1.65 }}>{step.output}</p>
+                                    </div>
+                                    <div onClick={() => toggleCheck(ck)}
+                                      style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", flexShrink: 0, background: done ? GREEN + "22" : "#1E1E1E", border: `1px solid ${done ? GREEN : BORD}`, borderRadius: 6, padding: "6px 12px" }}>
+                                      <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${done ? GREEN : MUTED}`, background: done ? GREEN : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        {done && <span style={{ color: "#fff", fontSize: 10 }}>✓</span>}
+                                      </div>
+                                      <span style={{ fontSize: 11, color: done ? "#4ADE80" : MUTED, fontFamily: "monospace" }}>{done ? "Done" : "Mark done"}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
